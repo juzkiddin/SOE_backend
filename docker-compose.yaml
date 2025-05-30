@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: ker@byt3       # Default PostgreSQL username
       POSTGRES_PASSWORD: HEVCsouled@0912  # Password for the user
-      POSTGRES_DB: otpdb      # Default database name
+      POSTGRES_DB: kerabyteapi      # Default database name
     ports:
       - "5432:5432"  # Maps host port 5432 to container port 5432
     volumes:

@@ -7,9 +7,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CryptoService } from './crypto.service';
 import { AuthService } from './auth.service';
+import { CacheModule } from '../cache/cache.module';
 
 @Module({
-  imports: [PrismaModule, RateLimitingModule],
+  imports: [PrismaModule, RateLimitingModule, CacheModule],
   controllers: [OtpController],
   providers: [
     OtpService,

@@ -61,7 +61,7 @@ export class OtpService {
                 clientId,
                 tableId,
                 verified: false,
-            } as Prisma.OtpUncheckedCreateInput
+            }
         });
 
         return { uuid: otpRecord.id, attemptsLeft };
@@ -117,7 +117,7 @@ export class OtpService {
                 expiresAt: {
                     gt: new Date()
                 }
-            } as Prisma.OtpWhereInput,
+            },
             orderBy: {
                 createdAt: 'desc'
             }

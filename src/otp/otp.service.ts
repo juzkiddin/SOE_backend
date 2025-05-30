@@ -1,8 +1,8 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as otpGenerator from 'otp-generator';
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { RateLimitingService } from '../rate-limiting/rate-limiting.service';
 
 @Injectable()
@@ -13,9 +13,9 @@ export class OtpService {
         private rateLimitingService: RateLimitingService,
     ) { }
 
-    async generateOtp(clientId: string, res: Response): Promise<{ uuid: string; attemptsLeft: number }> {
-        // Check rate limit
-        const { allowed, attemptsLeft } = await this.rateLimitingService.checkRateLimit(clientId, res);
+    async generateOtp(req: Request, res: Response): Promise<{ uuid: string; attemptsLeft: number }> {
+        // First check rate limits - this will create a new cookie if none exists
+        const { allowed, attemptsLeft } = await this.rateLimitingService.checkRateLimit(req, res);
 
         if (!allowed) {
             throw new ForbiddenException(`Rate limit exceeded. Try again later.`);
@@ -32,20 +32,40 @@ export class OtpService {
         const expiresAt = new Date();
         expiresAt.setMinutes(expiresAt.getMinutes() + otpDurationMinutes);
 
+        // Get the clientId (either existing or newly created by checkRateLimit)
+        const clientId = req.signedCookies?.[this.rateLimitingService.COOKIE_NAME];
+
+        if (!clientId) {
+            throw new UnauthorizedException('No valid session found for OTP generation');
+        }
+
+        // Clear any existing OTP records for this client before creating a new one
+        await this.prisma.otp.deleteMany({
+            where: {
+                clientId: clientId,
+                verified: false
+            }
+        });
+
         const otpRecord = await this.prisma.otp.create({
             data: {
                 otpCode,
                 expiresAt,
-                clientId, // Store clientId with OTP
+                clientId,
             },
         });
 
         return { uuid: otpRecord.id, attemptsLeft };
     }
 
-    async verifyOtp(uuid: string, otpCode: string, clientId: string, res: Response): Promise<{ success: boolean }> {
+    async verifyOtp(uuid: string, otpCode: string, req: Request, res: Response): Promise<{ success: boolean }> {
+        const clientId = req.signedCookies?.[this.rateLimitingService.COOKIE_NAME];
+        if (!clientId) {
+            throw new UnauthorizedException('No active OTP session');
+        }
+
         const otpRecord = await this.prisma.otp.findUnique({
-            where: { id: uuid, clientId }, // Verify clientId matches
+            where: { id: uuid, clientId },
         });
 
         if (!otpRecord) {
@@ -60,16 +80,16 @@ export class OtpService {
             return { success: false };
         }
 
-        // Mark as verified
+        // On successful verification:
+        // 1. Clear only the rate limit attempts (not the session)
+        await this.rateLimitingService.clearRateLimitAttempts(req);
+
+        // 2. Mark as verified and delete the OTP
         await this.prisma.otp.update({
             where: { id: uuid },
             data: { verified: true },
         });
 
-        // Clear rate limiting for successful verification
-        await this.rateLimitingService.clearRateLimit(clientId, res);
-
-        // Delete the OTP record
         await this.prisma.otp.delete({ where: { id: uuid } });
 
         return { success: true };

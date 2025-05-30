@@ -1,57 +1,71 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 
 @Injectable()
 export class RateLimitingService {
-    private readonly MAX_ATTEMPTS = 5;
-    private readonly COOKIE_NAME = 'otp_attempts';
-    private readonly COOKIE_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+    readonly MAX_ATTEMPTS = 5;
+    readonly COOKIE_NAME = 'otp_attempts';
+    readonly COOKIE_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 
     constructor(private prisma: PrismaService) { }
 
-    async checkRateLimit(uuid: string, res: Response): Promise<{ allowed: boolean; attemptsLeft: number }> {
-        const attempts = await this.prisma.otpAttempt.aggregate({
-            _count: true,
+    private getClientIdentifier(req: Request): string {
+        const cookieId = req.signedCookies?.[this.COOKIE_NAME] || 'no-cookie';
+        const ip = req.ip || 'unknown-ip';
+        return `${cookieId}-${ip}`;
+    }
+
+    async checkRateLimit(req: Request, res: Response): Promise<{ allowed: boolean; attemptsLeft: number }> {
+        // Always generate a new cookie if none exists
+        if (!req.signedCookies?.[this.COOKIE_NAME]) {
+            res.cookie(this.COOKIE_NAME, require('uuid').v4(), {
+                maxAge: this.COOKIE_EXPIRY_MS,
+                httpOnly: true,
+                sameSite: 'strict',
+                signed: true,
+            });
+        }
+
+        const clientIdentifier = this.getClientIdentifier(req);
+
+        const attempts = await this.prisma.otpAttempt.count({
             where: {
-                clientId: uuid,
+                clientId: clientIdentifier,
                 createdAt: {
                     gte: new Date(Date.now() - this.COOKIE_EXPIRY_MS),
                 },
             },
         });
 
-        const attemptsCount = attempts._count;
-        const attemptsLeft = this.MAX_ATTEMPTS - attemptsCount;
+        const attemptsLeft = this.MAX_ATTEMPTS - attempts;
 
-        if (attemptsCount >= this.MAX_ATTEMPTS) {
+        if (attempts >= this.MAX_ATTEMPTS) {
             return { allowed: false, attemptsLeft: 0 };
         }
 
-        // Record the attempt
         await this.prisma.otpAttempt.create({
             data: {
-                clientId: uuid,
+                clientId: clientIdentifier,
+                ipAddress: req.ip,
             },
-        });
-
-        // Set cookie with remaining attempts
-        res.cookie(this.COOKIE_NAME, uuid, {
-            maxAge: this.COOKIE_EXPIRY_MS,
-            httpOnly: true,
-            sameSite: 'strict',
         });
 
         return { allowed: true, attemptsLeft };
     }
 
-    async clearRateLimit(uuid: string, res: Response): Promise<void> {
-        // Clear attempts for this client
+    async clearRateLimit(req: Request, res: Response): Promise<void> {
+        const clientIdentifier = this.getClientIdentifier(req);
         await this.prisma.otpAttempt.deleteMany({
-            where: { clientId: uuid },
+            where: { clientId: clientIdentifier },
         });
-
-        // Clear the cookie
         res.clearCookie(this.COOKIE_NAME);
+    }
+
+    async clearRateLimitAttempts(req: Request): Promise<void> {
+        const clientIdentifier = this.getClientIdentifier(req);
+        await this.prisma.otpAttempt.deleteMany({
+            where: { clientId: clientIdentifier },
+        });
     }
 }

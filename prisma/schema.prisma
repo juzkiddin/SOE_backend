@@ -21,6 +21,7 @@ model Otp {
 model OtpAttempt {
   id        String   @id @default(uuid())
   clientId  String
+  ipAddress String?
   createdAt DateTime @default(now())
 
   @@index([clientId])

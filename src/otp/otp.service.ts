@@ -1,17 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as otpGenerator from 'otp-generator';
-import * as uuid from 'uuid';
 import { ConfigService } from '@nestjs/config';
+import { Response } from 'express';
+import { RateLimitingService } from '../rate-limiting/rate-limiting.service';
 
 @Injectable()
 export class OtpService {
     constructor(
         private prisma: PrismaService,
         private configService: ConfigService,
+        private rateLimitingService: RateLimitingService,
     ) { }
 
-    async generateOtp(): Promise<{ uuid: string }> {
+    async generateOtp(clientId: string, res: Response): Promise<{ uuid: string; attemptsLeft: number }> {
+        // Check rate limit
+        const { allowed, attemptsLeft } = await this.rateLimitingService.checkRateLimit(clientId, res);
+
+        if (!allowed) {
+            throw new ForbiddenException(`Rate limit exceeded. Try again later.`);
+        }
+
         const otpCode = otpGenerator.generate(6, {
             digits: true,
             lowerCaseAlphabets: false,
@@ -27,27 +36,26 @@ export class OtpService {
             data: {
                 otpCode,
                 expiresAt,
+                clientId, // Store clientId with OTP
             },
         });
 
-        return { uuid: otpRecord.id };
+        return { uuid: otpRecord.id, attemptsLeft };
     }
 
-    async verifyOtp(uuid: string, otpCode: string): Promise<{ success: boolean }> {
+    async verifyOtp(uuid: string, otpCode: string, clientId: string, res: Response): Promise<{ success: boolean }> {
         const otpRecord = await this.prisma.otp.findUnique({
-            where: { id: uuid },
+            where: { id: uuid, clientId }, // Verify clientId matches
         });
 
         if (!otpRecord) {
             return { success: false };
         }
 
-        // Check if OTP is already verified or expired
         if (otpRecord.verified || new Date() > otpRecord.expiresAt) {
             return { success: false };
         }
 
-        // Check if OTP code matches
         if (otpRecord.otpCode !== otpCode) {
             return { success: false };
         }
@@ -58,7 +66,10 @@ export class OtpService {
             data: { verified: true },
         });
 
-        // Optionally: Delete the record after verification
+        // Clear rate limiting for successful verification
+        await this.rateLimitingService.clearRateLimit(clientId, res);
+
+        // Delete the OTP record
         await this.prisma.otp.delete({ where: { id: uuid } });
 
         return { success: true };

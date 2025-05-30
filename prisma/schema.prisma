@@ -10,9 +10,18 @@ datasource db {
 model Otp {
   id        String   @id @default(uuid())
   otpCode   String
+  clientId  String
   createdAt DateTime @default(now())
   expiresAt DateTime
   verified  Boolean  @default(false)
 
   @@index([id])
+  @@index([clientId])
+}
+model OtpAttempt {
+  id        String   @id @default(uuid())
+  clientId  String
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
 }

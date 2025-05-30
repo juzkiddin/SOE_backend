@@ -1,9 +1,11 @@
-import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ForbiddenException, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as otpGenerator from 'otp-generator';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { RateLimitingService } from '../rate-limiting/rate-limiting.service';
+import { CryptoService } from './crypto.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class OtpService {
@@ -11,9 +13,14 @@ export class OtpService {
         private prisma: PrismaService,
         private configService: ConfigService,
         private rateLimitingService: RateLimitingService,
+        private cryptoService: CryptoService,
     ) { }
 
-    async generateOtp(req: Request, res: Response): Promise<{ uuid: string; attemptsLeft: number }> {
+    async generateOtp(
+        req: Request,
+        res: Response,
+        tableId: string
+    ): Promise<{ uuid: string; attemptsLeft: number }> {
         // First check rate limits - this will create a new cookie if none exists
         const { allowed, attemptsLeft } = await this.rateLimitingService.checkRateLimit(req, res);
 
@@ -52,7 +59,9 @@ export class OtpService {
                 otpCode,
                 expiresAt,
                 clientId,
-            },
+                tableId,
+                verified: false,
+            } as Prisma.OtpUncheckedCreateInput
         });
 
         return { uuid: otpRecord.id, attemptsLeft };
@@ -93,5 +102,38 @@ export class OtpService {
         await this.prisma.otp.delete({ where: { id: uuid } });
 
         return { success: true };
+    }
+
+    async getOtp(
+        tableId: string,
+        clientSecret: string,
+        clientKey: string
+    ): Promise<{ encryptedOtp: string; publicKey: string; uuid: string }> {
+        // Authentication is handled by guard, if we get here, credentials are valid
+        const otpRecord = await this.prisma.otp.findFirst({
+            where: {
+                tableId,
+                verified: false,
+                expiresAt: {
+                    gt: new Date()
+                }
+            } as Prisma.OtpWhereInput,
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        if (!otpRecord) {
+            throw new NotFoundException('OTP not found');
+        }
+
+        const encryptedOtp = this.cryptoService.encryptOtp(otpRecord.otpCode);
+        const publicKey = this.cryptoService.getPublicKey();
+
+        return {
+            encryptedOtp,
+            publicKey,
+            uuid: otpRecord.id,
+        };
     }
 }

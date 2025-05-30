@@ -5,6 +5,8 @@ export default () => ({
     security: {
         cookieSecret: process.env.COOKIE_SECRET || 'your-strong-cookie-secret',
         nodeEnv: process.env.NODE_ENV || 'development',
+        otpVerifySecret: process.env.OTP_VERIFY_SECRET,
+        otpVerifyKey: process.env.OTP_VERIFY_KEY,
     },
     otp: {
         durationMinutes: parseInt(process.env.OTP_DURATION_MINUTES || '5', 10),

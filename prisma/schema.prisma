@@ -11,13 +11,16 @@ model Otp {
   id        String   @id @default(uuid())
   otpCode   String
   clientId  String
+  tableId   String
   createdAt DateTime @default(now())
   expiresAt DateTime
   verified  Boolean  @default(false)
 
   @@index([id])
   @@index([clientId])
+  @@index([tableId])
 }
+
 model OtpAttempt {
   id        String   @id @default(uuid())
   clientId  String

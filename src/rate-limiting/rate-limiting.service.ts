@@ -1,14 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Response, Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RateLimitingService {
     readonly MAX_ATTEMPTS = 5;
     readonly COOKIE_NAME = 'otp_attempts';
-    readonly COOKIE_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+    private readonly COOKIE_EXPIRY_MS: number;
+    readonly RATE_LIMIT_WINDOW_MS = 30 * 1000; // 30 seconds
 
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private configService: ConfigService,
+    ) {
+        // Convert OTP duration from minutes to milliseconds
+        this.COOKIE_EXPIRY_MS = this.configService.get<number>('otp.durationMinutes', 5) * 60 * 1000;
+    }
 
     private getClientIdentifier(req: Request): string {
         const cookieId = req.signedCookies?.[this.COOKIE_NAME] || 'no-cookie';
@@ -33,7 +41,7 @@ export class RateLimitingService {
             where: {
                 clientId: clientIdentifier,
                 createdAt: {
-                    gte: new Date(Date.now() - this.COOKIE_EXPIRY_MS),
+                    gte: new Date(Date.now() - this.RATE_LIMIT_WINDOW_MS),
                 },
             },
         });

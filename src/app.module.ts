@@ -19,7 +19,7 @@ import configuration from './config/configuration';
       useFactory: (config: ConfigService): ThrottlerModuleOptions => ({
         throttlers: [
           {
-            ttl: config.get('otp.rateLimitWindowMinutes', 15) * 60 * 1000,
+            ttl: 30000, // 30 seconds in milliseconds
             limit: config.get('otp.maxAttempts', 5),
           },
         ],

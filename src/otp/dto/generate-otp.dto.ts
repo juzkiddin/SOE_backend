@@ -1,4 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty } from 'class-validator';
+
+export class GenerateOtpDto {
+    @ApiProperty({
+        description: 'The table ID for which OTP is being generated',
+        example: 'abcd1234'
+    })
+    @IsString()
+    @IsNotEmpty()
+    tableId: string;
+}
 
 export class GenerateOtpResponseDto {
     @ApiProperty({

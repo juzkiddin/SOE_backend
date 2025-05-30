@@ -1,0 +1,18 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  otpCode   String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+
+  @@index([id])
+}

@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest  # or a specific version like postgres:15
+    container_name: api_database
+    environment:
+      POSTGRES_USER: ker@byt3       # Default PostgreSQL username
+      POSTGRES_PASSWORD: HEVCsouled@0912  # Password for the user
+      POSTGRES_DB: otpdb      # Default database name
+    ports:
+      - "5432:5432"  # Maps host port 5432 to container port 5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persists data even if container restarts
+    restart: unless-stopped  # Automatically restart unless manually stopped
+
+volumes:
+  postgres_data:  # Named volume to persist PostgreSQL data

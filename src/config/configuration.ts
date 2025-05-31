@@ -7,6 +7,7 @@ export default () => ({
         nodeEnv: process.env.NODE_ENV || 'development',
         otpVerifySecret: process.env.OTP_VERIFY_SECRET,
         otpVerifyKey: process.env.OTP_VERIFY_KEY,
+        otpDecryptKey: process.env.OTP_CERT_KEY,
     },
     otp: {
         durationMinutes: parseInt(process.env.OTP_DURATION_MINUTES || '5', 10),
@@ -20,6 +21,7 @@ export default () => ({
         maxAgeMinutes: parseInt(process.env.COOKIE_MAX_AGE_MINUTES || '15', 10),
     },
     api: {
+        host: process.env.HOST || '0.0.0.0',
         port: parseInt(process.env.PORT || '3000', 10),
         rateLimit: parseInt(process.env.API_RATE_LIMIT || '100', 10),
         rateLimitWindowMinutes: parseInt(process.env.API_RATE_LIMIT_WINDOW_MINUTES || '15', 10),

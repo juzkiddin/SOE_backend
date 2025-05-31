@@ -29,7 +29,7 @@
     "@prisma/client": "^6.8.2",
     "@types/cookie-parser": "^1.4.8",
     "@types/uuid": "^10.0.0",
-    "@nestjs/bull": "^1.1.1",
+    "@nestjs/bull": "^11.0.1",
     "@nestjs/cache-manager": "^2.2.1",
     "bull": "^4.12.2",
     "cache-manager": "^5.4.0",

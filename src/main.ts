@@ -9,21 +9,52 @@ import { json } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn'], // Reduce logging in production
-    cors: {
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-      credentials: true
-    },
     bodyParser: true
   });
 
   const configService = app.get(ConfigService);
 
-  // Security headers
+  // Get allowed origins from environment variable
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+
+  // CORS configuration for cross-origin requests with credentials
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+
+      // If no specific origins are configured, allow all for development
+      if (allowedOrigins.length === 0) {
+        return callback(null, true);
+      }
+
+      // Check if the origin is in the allowed list
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Reject the request
+      return callback(new Error('CORS policy violation: Origin not allowed'), false);
+    },
+    credentials: true, // Allow cookies to be sent cross-origin
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'Cache-Control',
+      'X-File-Name'
+    ],
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Retry-After'
+    ],
+    preflightContinue: false,
+    optionsSuccessStatus: 200,
   });
 
   // Cookie parser middleware
@@ -58,5 +89,6 @@ async function bootstrap() {
   const port = configService.get('api.port', 3000);
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`CORS enabled for origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'all origins (development mode)'}`);
 }
 bootstrap();

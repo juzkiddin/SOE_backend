@@ -23,13 +23,30 @@ export class RateLimitingGuard implements CanActivate {
             // Get proper cookie expiry time from config
             const cookieExpiryMs = this.configService.get<number>('otp.durationMinutes', 5) * 60 * 1000;
 
-            // Set cookie in response for future requests
-            response.cookie(this.rateLimitingService.COOKIE_NAME, cookieId, {
+            // Determine if we're in production (HTTPS) or development
+            const isProduction = process.env.NODE_ENV === 'production';
+            const isHttps = request.protocol === 'https' || request.get('x-forwarded-proto') === 'https';
+
+            // Cookie options for cross-site requests
+            const cookieOptions: any = {
                 maxAge: cookieExpiryMs,
                 httpOnly: true,
-                sameSite: 'strict',
                 signed: true,
-            });
+            };
+
+            // Set cookie attributes based on environment and protocol
+            if (isProduction || isHttps) {
+                // Production settings for cross-site requests over HTTPS
+                cookieOptions.secure = true;
+                cookieOptions.sameSite = 'none';
+            } else {
+                // Development settings for same-site requests over HTTP
+                cookieOptions.secure = false;
+                cookieOptions.sameSite = 'lax';
+            }
+
+            // Set cookie in response for future requests
+            response.cookie(this.rateLimitingService.COOKIE_NAME, cookieId, cookieOptions);
 
             // Make the cookie immediately available in the current request context
             if (!request.signedCookies) {

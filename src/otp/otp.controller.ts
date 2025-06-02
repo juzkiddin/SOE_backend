@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Res, HttpCode, Param } from '@nestjs/common';
+import { Controller, Post, Body, Req, Res, HttpCode, Param, UseGuards } from '@nestjs/common';
 import { OtpService } from './otp.service';
 import { AuthService } from './auth.service';
 import { Request, Response } from 'express';
@@ -6,6 +6,7 @@ import { ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
 import { GenerateOtpDto, GenerateOtpResponseDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
 import { GetOtpRequestDto, GetOtpResponseDto } from './dto/get-otp.dto';
+import { RateLimitingGuard } from '../rate-limiting/rate-limiting.guard';
 
 @ApiTags('OTP')
 @Controller('otp')
@@ -29,6 +30,7 @@ export class OtpController {
 
     @Post('generate')
     @HttpCode(200)
+    @UseGuards(RateLimitingGuard)
     @ApiOperation({ summary: 'Generate a new OTP' })
     @ApiResponse({ status: 200, type: GenerateOtpResponseDto })
     @ApiResponse({ status: 429, description: 'Too Many Requests - Rate limit exceeded' })

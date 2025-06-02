@@ -3,8 +3,6 @@ import { OtpController } from './otp.controller';
 import { OtpService } from './otp.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RateLimitingModule } from '../rate-limiting/rate-limiting.module';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { CryptoService } from './crypto.service';
 import { AuthService } from './auth.service';
 import { CacheModule } from '../cache/cache.module';
@@ -16,10 +14,6 @@ import { CacheModule } from '../cache/cache.module';
     OtpService,
     CryptoService,
     AuthService,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
   ],
 })
 export class OtpModule { }

@@ -21,12 +21,29 @@ export class OtpService {
         res: Response,
         tableId: string
     ): Promise<{ uuid: string; attemptsLeft: number }> {
-        // First check rate limits - this will create a new cookie if none exists
-        const { allowed, attemptsLeft } = await this.rateLimitingService.checkRateLimit(req, res);
+        // Rate limiting and cookie creation is handled by RateLimitingGuard
+        // The guard ensures a valid cookie exists and is available in req.signedCookies
 
-        if (!allowed) {
-            throw new ForbiddenException(`Rate limit exceeded. Try again later.`);
-        }
+        const clientIdentifier = this.getClientIdentifier(req);
+
+        // Record this attempt
+        await this.prisma.otpAttempt.create({
+            data: {
+                clientId: clientIdentifier,
+                ipAddress: req.ip,
+            },
+        });
+
+        // Calculate remaining attempts after recording this one
+        const attempts = await this.prisma.otpAttempt.count({
+            where: {
+                clientId: clientIdentifier,
+                createdAt: {
+                    gte: new Date(Date.now() - this.rateLimitingService.RATE_LIMIT_WINDOW_MS),
+                },
+            },
+        });
+        const attemptsLeft = this.rateLimitingService.MAX_ATTEMPTS - attempts;
 
         const otpCode = otpGenerator.generate(6, {
             digits: true,
@@ -39,12 +56,8 @@ export class OtpService {
         const expiresAt = new Date();
         expiresAt.setMinutes(expiresAt.getMinutes() + otpDurationMinutes);
 
-        // Get the clientId (either existing or newly created by checkRateLimit)
-        const clientId = req.signedCookies?.[this.rateLimitingService.COOKIE_NAME];
-
-        if (!clientId) {
-            throw new UnauthorizedException('No valid session found for OTP generation');
-        }
+        // Get the clientId (guaranteed to exist after guard processing)
+        const clientId = req.signedCookies[this.rateLimitingService.COOKIE_NAME];
 
         // Clear any existing OTP records for this client before creating a new one
         await this.prisma.otp.deleteMany({
@@ -65,6 +78,12 @@ export class OtpService {
         });
 
         return { uuid: otpRecord.id, attemptsLeft };
+    }
+
+    private getClientIdentifier(req: Request): string {
+        const cookieId = req.signedCookies?.[this.rateLimitingService.COOKIE_NAME] || 'no-cookie';
+        const ip = req.ip || 'unknown-ip';
+        return `${cookieId}-${ip}`;
     }
 
     async verifyOtp(uuid: string, otpCode: string, req: Request, res: Response): Promise<{ success: boolean }> {

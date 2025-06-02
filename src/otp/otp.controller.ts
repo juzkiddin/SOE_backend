@@ -90,7 +90,6 @@ export class OtpController {
     @HttpCode(200)
     @ApiOperation({ summary: 'Verify an OTP (works for both table and SMS OTPs)' })
     @ApiResponse({ status: 200, type: VerifyOtpResponseDto })
-    @ApiResponse({ status: 401, description: 'No active OTP session' })
     async verifyOtp(
         @Body() verifyOtpDto: VerifyOtpDto,
         @Req() req: Request,
@@ -108,7 +107,6 @@ export class OtpController {
     @HttpCode(200)
     @ApiOperation({ summary: 'Verify an SMS OTP (alias for verify endpoint)' })
     @ApiResponse({ status: 200, type: VerifyOtpResponseDto })
-    @ApiResponse({ status: 401, description: 'No active OTP session' })
     async verifySmsOtp(
         @Body() verifyOtpDto: VerifyOtpDto,
         @Req() req: Request,

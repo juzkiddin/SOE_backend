@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as cookieParser from 'cookie-parser';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -17,7 +16,7 @@ async function bootstrap() {
   // Get allowed origins from environment variable
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
 
-  // CORS configuration for cross-origin requests with credentials
+  // CORS configuration for cross-origin requests
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
@@ -36,7 +35,7 @@ async function bootstrap() {
       // Reject the request
       return callback(new Error('CORS policy violation: Origin not allowed'), false);
     },
-    credentials: true, // Allow cookies to be sent cross-origin
+    credentials: false, // No longer needed since we don't use cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
       'Content-Type',
@@ -56,9 +55,6 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 200,
   });
-
-  // Cookie parser middleware
-  app.use(cookieParser(configService.get('COOKIE_SECRET')));
 
   // Body parser with size limit
   app.use(json({ limit: '10kb' }));
@@ -90,5 +86,6 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
   console.log(`CORS enabled for origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'all origins (development mode)'}`);
+  console.log(`Rate limiting: IP-based only (no cookies)`);
 }
 bootstrap();

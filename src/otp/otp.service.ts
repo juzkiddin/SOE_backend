@@ -23,9 +23,7 @@ export class OtpService {
         res: Response,
         tableId: string
     ): Promise<{ uuid: string; attemptsLeft: number }> {
-        // Rate limiting and cookie creation is handled by RateLimitingGuard
-        // The guard ensures a valid cookie exists and is available in req.signedCookies
-
+        // Rate limiting is handled by RateLimitingGuard
         const clientIdentifier = this.getClientIdentifier(req);
 
         // Record this attempt
@@ -58,13 +56,10 @@ export class OtpService {
         const expiresAt = new Date();
         expiresAt.setMinutes(expiresAt.getMinutes() + otpDurationMinutes);
 
-        // Get the clientId (guaranteed to exist after guard processing)
-        const clientId = req.signedCookies[this.rateLimitingService.COOKIE_NAME];
-
-        // Clear any existing OTP records for this client before creating a new one
+        // Clear any existing OTP records for this IP before creating a new one
         await this.prisma.otp.deleteMany({
             where: {
-                clientId: clientId,
+                clientId: clientIdentifier,
                 verified: false
             }
         });
@@ -73,7 +68,7 @@ export class OtpService {
             data: {
                 otpCode,
                 expiresAt,
-                clientId,
+                clientId: clientIdentifier,
                 tableId,
                 verified: false,
             }
@@ -87,9 +82,7 @@ export class OtpService {
         res: Response,
         mobileNum: string
     ): Promise<{ uuid: string; attemptsLeft: number }> {
-        // Rate limiting and cookie creation is handled by RateLimitingGuard
-        // The guard ensures a valid cookie exists and is available in req.signedCookies
-
+        // Rate limiting is handled by RateLimitingGuard
         const clientIdentifier = this.getClientIdentifier(req);
 
         // Record this attempt
@@ -122,13 +115,10 @@ export class OtpService {
         const expiresAt = new Date();
         expiresAt.setMinutes(expiresAt.getMinutes() + otpDurationMinutes);
 
-        // Get the clientId (guaranteed to exist after guard processing)
-        const clientId = req.signedCookies[this.rateLimitingService.COOKIE_NAME];
-
-        // Clear any existing OTP records for this client before creating a new one
+        // Clear any existing OTP records for this IP before creating a new one
         await this.prisma.otp.deleteMany({
             where: {
-                clientId: clientId,
+                clientId: clientIdentifier,
                 verified: false
             }
         });
@@ -137,7 +127,7 @@ export class OtpService {
             data: {
                 otpCode,
                 expiresAt,
-                clientId,
+                clientId: clientIdentifier,
                 mobileNum,
                 verified: false,
             }
@@ -165,19 +155,14 @@ export class OtpService {
     }
 
     private getClientIdentifier(req: Request): string {
-        const cookieId = req.signedCookies?.[this.rateLimitingService.COOKIE_NAME] || 'no-cookie';
-        const ip = req.ip || 'unknown-ip';
-        return `${cookieId}-${ip}`;
+        // Use only IP address for identification
+        return req.ip || req.connection.remoteAddress || 'unknown-ip';
     }
 
     async verifyOtp(uuid: string, otpCode: string, req: Request, res: Response): Promise<{ success: boolean }> {
-        const clientId = req.signedCookies?.[this.rateLimitingService.COOKIE_NAME];
-        if (!clientId) {
-            throw new UnauthorizedException('No active OTP session');
-        }
-
+        // Find OTP by UUID only (no session/cookie requirement)
         const otpRecord = await this.prisma.otp.findUnique({
-            where: { id: uuid, clientId },
+            where: { id: uuid },
         });
 
         if (!otpRecord) {
@@ -193,7 +178,7 @@ export class OtpService {
         }
 
         // On successful verification:
-        // 1. Clear only the rate limit attempts (not the session)
+        // 1. Clear rate limit attempts for this IP
         await this.rateLimitingService.clearRateLimitAttempts(req);
 
         // 2. Mark as verified and delete the OTP

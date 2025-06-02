@@ -5,6 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RateLimitingModule } from '../rate-limiting/rate-limiting.module';
 import { CryptoService } from './crypto.service';
 import { AuthService } from './auth.service';
+import { SmsService } from './sms.service';
 import { CacheModule } from '../cache/cache.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { CacheModule } from '../cache/cache.module';
     OtpService,
     CryptoService,
     AuthService,
+    SmsService,
   ],
 })
 export class OtpModule { }

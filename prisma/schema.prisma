@@ -11,7 +11,8 @@ model Otp {
   id        String   @id @default(uuid())
   otpCode   String
   clientId  String
-  tableId   String
+  tableId   String?  // Optional for table-based OTPs
+  mobileNum String?  // Optional for SMS-based OTPs
   createdAt DateTime @default(now())
   expiresAt DateTime
   verified  Boolean  @default(false)
@@ -19,6 +20,7 @@ model Otp {
   @@index([id])
   @@index([clientId])
   @@index([tableId])
+  @@index([mobileNum])
 }
 
 model OtpAttempt {

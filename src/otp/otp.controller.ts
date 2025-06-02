@@ -6,6 +6,7 @@ import { ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
 import { GenerateOtpDto, GenerateOtpResponseDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
 import { GetOtpRequestDto, GetOtpResponseDto } from './dto/get-otp.dto';
+import { SmsGenerateOtpDto, SmsGenerateOtpResponseDto } from './dto/sms-generate-otp.dto';
 import { RateLimitingGuard } from '../rate-limiting/rate-limiting.guard';
 
 @ApiTags('OTP')
@@ -31,7 +32,7 @@ export class OtpController {
     @Post('generate')
     @HttpCode(200)
     @UseGuards(RateLimitingGuard)
-    @ApiOperation({ summary: 'Generate a new OTP' })
+    @ApiOperation({ summary: 'Generate a new OTP for table' })
     @ApiResponse({ status: 200, type: GenerateOtpResponseDto })
     @ApiResponse({ status: 429, description: 'Too Many Requests - Rate limit exceeded' })
     async generateOtp(
@@ -40,6 +41,23 @@ export class OtpController {
         @Res({ passthrough: true }) res: Response,
     ): Promise<GenerateOtpResponseDto> {
         const result = await this.otpService.generateOtp(req, res, generateOtpDto.tableId);
+        this.setRateLimitHeaders(res, result.attemptsLeft);
+        return result;
+    }
+
+    @Post('smsgen')
+    @HttpCode(200)
+    @UseGuards(RateLimitingGuard)
+    @ApiOperation({ summary: 'Generate a new OTP for SMS' })
+    @ApiResponse({ status: 200, type: SmsGenerateOtpResponseDto })
+    @ApiResponse({ status: 429, description: 'Too Many Requests - Rate limit exceeded' })
+    @ApiResponse({ status: 500, description: 'Failed to send sms' })
+    async generateSmsOtp(
+        @Body() smsGenerateOtpDto: SmsGenerateOtpDto,
+        @Req() req: Request,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<SmsGenerateOtpResponseDto> {
+        const result = await this.otpService.generateSmsOtp(req, res, smsGenerateOtpDto.mobileNum);
         this.setRateLimitHeaders(res, result.attemptsLeft);
         return result;
     }
@@ -70,7 +88,7 @@ export class OtpController {
 
     @Post('verify')
     @HttpCode(200)
-    @ApiOperation({ summary: 'Verify an OTP' })
+    @ApiOperation({ summary: 'Verify an OTP (works for both table and SMS OTPs)' })
     @ApiResponse({ status: 200, type: VerifyOtpResponseDto })
     @ApiResponse({ status: 401, description: 'No active OTP session' })
     async verifyOtp(
@@ -78,6 +96,25 @@ export class OtpController {
         @Req() req: Request,
         @Res({ passthrough: true }) res: Response,
     ): Promise<VerifyOtpResponseDto> {
+        return this.otpService.verifyOtp(
+            verifyOtpDto.uuid,
+            verifyOtpDto.otpCode,
+            req,
+            res,
+        );
+    }
+
+    @Post('smsverify')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Verify an SMS OTP (alias for verify endpoint)' })
+    @ApiResponse({ status: 200, type: VerifyOtpResponseDto })
+    @ApiResponse({ status: 401, description: 'No active OTP session' })
+    async verifySmsOtp(
+        @Body() verifyOtpDto: VerifyOtpDto,
+        @Req() req: Request,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<VerifyOtpResponseDto> {
+        // This is essentially the same as verifyOtp since verification logic is identical
         return this.otpService.verifyOtp(
             verifyOtpDto.uuid,
             verifyOtpDto.otpCode,
